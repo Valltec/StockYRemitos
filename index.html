@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generador de Remitos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --negro:#000; --verde:#3CC13B; --azul:#0A72E0; --gris:#EEEEEE;
+    --texto:#4A4A4A; --linea:#DDDDDD; --banda:#F7F9FC; --rojo:#C62828;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#E9ECF1;font-family:Arial,Helvetica,sans-serif;color:var(--texto)}
+  /* Barra de herramientas (no se imprime) */
+  .toolbar{position:sticky;top:0;z-index:5;background:var(--negro);color:#fff;
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px}
+  .toolbar .marca{font-weight:bold;font-size:13px;margin-right:auto}
+  .btn{border:0;border-radius:18px;padding:8px 16px;font:bold 13px Arial;cursor:pointer}
+  .btn.verde{background:var(--verde);color:#fff}
+  .btn.azul{background:var(--azul);color:#fff}
+  .btn.blanco{background:#fff;color:var(--negro)}
+  .btn:hover{filter:brightness(1.08)}
+
+  /* Hoja A4 */
+  .hoja{width:210mm;min-height:297mm;margin:20px auto;background:#fff;
+    box-shadow:0 2px 14px rgba(0,0,0,.15);display:flex;flex-direction:column}
+  .franja{background:var(--negro);color:#fff;font-size:10px;font-weight:bold;padding:6px 14mm}
+  .cabecera{background:var(--verde);color:#fff;padding:10px 14mm;display:flex;justify-content:space-between;align-items:center}
+  .cabecera h1{margin:0;font-size:24px;letter-spacing:.5px}
+  .cabecera .num{font-size:13px;text-align:right}
+  .cabecera .num input{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.6);color:#fff;
+    font:bold 15px Arial;padding:4px 8px;border-radius:4px;width:190px;text-align:right}
+  .contenido{padding:8mm 14mm;flex:1;display:flex;flex-direction:column;gap:7mm}
+
+  .datos{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:var(--gris);padding:10px 12px;border-radius:4px}
+  .campo label{display:block;font-size:10px;font-weight:bold;text-transform:uppercase;margin-bottom:3px}
+  .campo input,.campo select,.campo textarea{width:100%;font:13px Arial;color:var(--texto);
+    border:1px solid #C9CED6;border-radius:4px;padding:6px 7px;background:#fff}
+  .campo.ancho{grid-column:span 3}
+
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead th{background:var(--azul);color:#fff;padding:7px 6px;text-align:center;font-size:11px;border-right:1px solid #fff}
+  tbody td{border:1px solid var(--linea);padding:3px 4px;vertical-align:middle}
+  tbody tr:nth-child(even) td{background:var(--banda)}
+  td select,td input{width:100%;font:12px Arial;color:var(--texto);border:1px solid #C9CED6;border-radius:3px;padding:4px;background:#fff}
+  td.n{text-align:center;width:26px;font-weight:bold}
+  td.unidad{text-align:center;width:70px}
+  td.cant{width:70px}
+  td.cant input{text-align:center}
+  td.x{width:28px;text-align:center}
+  .borrar{border:0;background:none;color:var(--rojo);font-size:16px;cursor:pointer}
+  tfoot td{background:var(--verde);color:#fff;font-weight:bold;padding:7px 6px;border:1px solid var(--verde)}
+  .agregar{margin-top:6px}
+
+  .pie{display:grid;grid-template-columns:1fr 1fr 130px;gap:14px;align-items:end;margin-top:auto}
+  .firma{border-top:1px solid var(--texto);padding-top:4px;font-size:11px;text-align:center}
+  .firma input{border:0;border-bottom:1px dashed #C9CED6;width:100%;text-align:center;font:12px Arial;margin-top:4px}
+  .qrbox{text-align:center;font-size:9px}
+  #qr{width:120px;height:120px;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--linea)}
+  #qr img,#qr canvas{width:116px;height:116px}
+  .aviso{color:var(--rojo);font-size:9px}
+  #datosPDF{display:none;font:3px/3px monospace;color:#fff;word-break:break-all;padding:0 14mm}
+  .footer{background:var(--azul);color:#fff;font-size:9px;padding:6px 14mm;display:flex;justify-content:space-between}
+
+  @media print{
+    @page{size:A4;margin:0}
+    body{background:#fff}
+    .toolbar,.no-print,.agregar,td.x,th.x{display:none!important}
+    .hoja{margin:0;box-shadow:none;width:210mm;min-height:297mm}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    input,select,textarea{border:0!important;background:transparent!important;appearance:none;-webkit-appearance:none;padding:2px 0!important}
+    .cabecera .num input{background:transparent!important;border:0!important}
+    tr.vacia{display:none}
+    select:disabled{color:var(--texto)!important;opacity:1}
+    ::placeholder{color:transparent!important}
+    textarea{resize:none}
+    input:focus,select:focus,textarea:focus{outline:none!important;box-shadow:none!important}
+    input[type=number]{-moz-appearance:textfield}
+    input::-webkit-inner-spin-button,input::-webkit-outer-spin-button,input::-webkit-calendar-picker-indicator{display:none;-webkit-appearance:none}
+    .aviso{display:none}
+    #datosPDF{display:block!important}
+  }
+  select:disabled{color:var(--texto);background:#F4F5F7}
+  @media (max-width:820px){
+    .hoja{width:100%;min-height:auto;margin:0}
+    .datos{grid-template-columns:1fr}
+    .campo.ancho{grid-column:span 1}
+    .pie{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="marca">Generador de Remitos · Stock de insumos</span>
+  <button class="btn blanco" onclick="nuevoRemito()">Nuevo remito</button>
+  <button class="btn verde" onclick="imprimir()">Imprimir PDF</button>
+</div>
+
+<div class="hoja">
+  <div class="franja">Gobierno de Río Negro · Secretaría de Trabajo</div>
+  <div class="cabecera">
+    <h1>REMITO DE INSUMOS</h1>
+    <div class="num">N° <input id="numero" oninput="actualizarQR()"></div>
+  </div>
+
+  <div class="contenido">
+    <div class="datos">
+      <div class="campo">
+        <label for="fecha">Fecha</label>
+        <input type="date" id="fecha" onchange="actualizarQR()">
+      </div>
+      <div class="campo">
+        <label for="delegacion">Delegación destino</label>
+        <select id="delegacion" onchange="actualizarQR()"></select>
+      </div>
+      <div class="campo">
+        <label for="sector">Sector / oficina</label>
+        <input id="sector" placeholder="Opcional" oninput="actualizarQR()">
+      </div>
+    </div>
+
+    <div>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Categoría</th><th>Artículo</th><th>Presentación</th><th>Unidad</th><th>Cantidad</th><th class="x"></th></tr>
+        </thead>
+        <tbody id="items"></tbody>
+        <tfoot>
+          <tr><td colspan="5">TOTAL DE ARTÍCULOS · <span id="totalItems">0</span> ítems</td>
+              <td style="text-align:center" id="totalCant">0</td><td class="x"></td></tr>
+        </tfoot>
+      </table>
+      <button class="btn azul agregar" onclick="agregarFila()">+ Agregar ítem</button>
+    </div>
+
+    <div class="campo">
+      <label for="obs">Observaciones</label>
+      <textarea id="obs" rows="2" oninput="actualizarQR()"></textarea>
+    </div>
+
+    <div class="pie">
+      <div class="firma">Entrega (firma y aclaración)<input id="entrega" placeholder="Aclaración" oninput="actualizarQR()"></div>
+      <div class="firma">Recibe (firma y aclaración)<input id="recibe" placeholder="Aclaración"></div>
+      <div class="qrbox">
+        <div id="qr"></div>
+        <div>Escanear en la app de recepción</div>
+        <div class="aviso" id="avisoQR"></div>
+      </div>
+    </div>
+  </div>
+  <div id="datosPDF" aria-hidden="true"></div>
+  <div class="footer"><span>Secretaría de Trabajo · Provincia de Río Negro</span><span id="pieNumero"></span></div>
+</div>
+
+<script>
+// ===== Listas embebidas (sin acceso a la planilla) =====
+// Formato: { HOJA: [[articulo, presentacion, unidad], ...] }
+const CATALOGO = {"LIBRERIA": [["Resmas", "Caja x 10 u.", "Caja"], ["Lapiceras", "Caja x 50 u.", "Caja"], ["Marcadores permanentes", "Caja x 12 u.", "Caja"], ["Broches 10/50", "Caja x 100 u.", "Caja"], ["Reglas", "Caja x 30 u.", "Caja"], ["Plasticola", "Caja x 24 u.", "Caja"], ["Marcadores para pizarra", "Caja x 12 u.", "Caja"], ["Gomas de borrar", "Caja x 24 u.", "Caja"], ["Lápices de grafito", "Caja x 12 u.", "Caja"], ["Tinta para sellos", "Caja x 12 u.", "Caja"], ["Perforadoras", "Caja x 6 u.", "Caja"], ["Sacapuntas", "Caja x 24 u.", "Caja"], ["Señaladores de páginas", "Caja x 48 u.", "Caja"], ["Cuadernillos", "Unidad", "Unidad"], ["Clips N° 5", "Caja x 10 u.", "Caja"], ["Carpetas plásticas", "Paquete x 10 u.", "Paquete"], ["Corrector", "Caja x 24 u.", "Caja"], ["Arandelas de cartón", "Caja x 500 u.", "Caja"], ["Notas adhesivas", "Caja x 12 u.", "Caja"], ["Plantillas", "Caja x 10 u.", "Caja"], ["Bobinas", "Unidad", "Unidad"], ["Broches dorados", "Caja x 100 u.", "Caja"], ["Cuadernos", "Unidad", "Unidad"], ["Papel carbónico", "Paquete x 50 u.", "Paquete"], ["Abrochadoras", "Caja x 10 u.", "Caja"], ["Cinta ancha", "Paquete x 6 u.", "Paquete"], ["Folios A4", "Paquete x 100 u.", "Paquete"], ["Sobres de papel madera", "Paquete x 50 u.", "Paquete"], ["Libros Travel", "Unidad", "Unidad"], ["Separadores", "Paquete x 50 juegos", "Paquete"], ["Carpetas R.N.", "Paquete x 40 u.", "Paquete"]], "REFRIGERIO": [["Yerba", "Bolsón x 6 u.", "kg"], ["Leche", "Caja x 12 u.", "kg"], ["Edulcorante", "Caja x 400 u.", "Caja"], ["Café", "Caja x 6 u.", "kg"], ["Café en saquitos", "Caja x 20 u.", "Caja"], ["Té negro", "Caja x 10 u.", "Caja"], ["Leche descremada", "Caja x 30 u.", "Caja"], ["Azúcar", "Bolsón x 10 u.", "kg"], ["Mate cocido", "Caja x 25 u.", "Caja"]], "LIMPIEZA": [["Detergente", "Bidón 5 L", "Bidón"], ["Lavandina", "Bidón 5 L", "Bidón"], ["Bolsas de residuos 60x90", "Paquete x 10 u.", "Paquete"], ["Bolsas de residuos 80x110", "Paquete x 10 u.", "Paquete"], ["Bolsas de residuos 45x60", "Paquete x 10 u.", "Paquete"], ["Papel higiénico", "Bolsón x 24 u.", "Bolsón"], ["Guantes de látex", "Paquete x 1 par", "Paquete"], ["Esponjas", "Paquete x 12 u.", "Paquete"], ["Esponjas inoxidables", "Unidad", "Unidad"], ["Jabón blanco", "Unidad", "Unidad"], ["Líquido para lampazo", "Botella 1 L", "Botella"], ["Líquido para pisos", "Bidón 5 L", "Bidón"], ["Crema multiuso", "Botella 500 ml", "Botella"], ["Limpiavidrios", "Recarga 500 ml", "Recarga"], ["Escobas", "Caja x 12 u.", "Caja"], ["Desodorante de ambiente", "Paquete x 6 u.", "Paquete"], ["Alcohol en gel", "Bidón 5 L", "Bidón"], ["Alcohol líquido 70%", "Bidón 5 L", "Bidón"], ["Secador de piso", "Unidad", "Unidad"], ["Servilletas", "Paquete x 3 u.", "Paquete"], ["Rejillas", "Unidad", "Unidad"], ["Trapos de piso", "Unidad", "Unidad"], ["Franelas", "Unidad", "Unidad"], ["Lustramuebles", "Paquete x 12 u.", "Paquete"], ["Palas de basura", "Unidad", "Unidad"], ["Servilletas de baño", "", "Paquete"], ["Palos de escoba", "Unidad", "Unidad"]], "INFORMATICA": [["Estabilizadores", "Unidad", "Unidad"], ["Teclados", "Unidad", "Unidad"], ["Mouse", "Unidad", "Unidad"], ["Monitores", "Unidad", "Unidad"], ["Parlantes", "Unidad", "Unidad"], ["Switches", "Unidad", "Unidad"], ["Cable de red", "Caja x 100 m", "Caja"], ["Routers", "Unidad", "Unidad"], ["Fichas RJ45", "Unidad", "Unidad"], ["Cámaras web", "Unidad", "Unidad"]], "MANTENIMIENTO": [["Placas de durlock", "9,5 mm - 1,20 x 2,40 m", "Unidad"], ["Perfil montante", "69 mm x 2600 mm", "Unidad"], ["Perfil solera", "70 mm x 2600 mm", "Unidad"], ["Tarugos", "Nylon con tope N° 8", "Unidad"], ["Tarugos", "Nylon con tope N° 6", "Unidad"], ["Tornillos para madera dorados", "10 x 1 3/4 (8) fic", "Unidad"], ["Tornillos para madera dorados", "8 x 1 1/2 (6) fic", "Unidad"], ["Tornillos T1", "8 x 9/16 secado", "Unidad"], ["Tornillos T2", "Aguja 6 x 1 fosfatizado fic", "Unidad"], ["Poximix para paredes", "Paquete 5 kg - exterior", "Paquete"], ["Látex blanco", "Lata 20 L - int./ext.", "Lata"], ["Fijador sellador", "Lata 10 L", "Lata"], ["Lijas de papel", "N° 80/120", "Unidad"], ["Sintético negro", "Lata 20 L - satinado", "Lata"], ["Sintético negro", "Lata 20 L - brillante", "Lata"], ["Sintético gris", "Lata 20 L - espacial", "Lata"], ["Sintético blanco", "Lata 20 L - brillante", "Lata"], ["Membrana líquida", "Lata 20 L - para techos", "Lata"], ["Protector para madera", "Lata 20 L - impermeabilizante", "Lata"], ["Aguarrás", "Bidón 4 L", "Bidón"], ["Rodillos", "Antigoteo", "Unidad"], ["Rodillos de lana", "Pelo corto", "Unidad"], ["Sika (Cerecita)", "Envase 4 kg", "Unidad"]]};
+const NOMBRES = {LIBRERIA:"Librería", REFRIGERIO:"Refrigerio", LIMPIEZA:"Limpieza",
+                 INFORMATICA:"Informática", MANTENIMIENTO:"Mantenimiento"};
+const DELEGACIONES = ["CASA CENTRAL","ALLEN","CATRIEL","CHIMPAY","CHOELE CHOEL","CINCO SALTOS","CIPOLLETTI",
+  "EL BOLSÓN","GENERAL CONESA","GENERAL ROCA","INGENIERO JACOBACCI","LAMARQUE","LOS MENUCOS","RÍO COLORADO",
+  "SAN ANTONIO OESTE","SAN CARLOS DE BARILOCHE","SIERRA GRANDE","VIEDMA","VILLA REGINA"];
+
+const $ = id => document.getElementById(id);
+const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(t ?? v)}</option>`;
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");}
+const unicos = arr => [...new Set(arr)];
+
+function numeroNuevo(){
+  const d = new Date(), p = n => String(n).padStart(2,"0");
+  return `R-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+function hoy(){
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0,10);
+}
+
+// ===== Filas de ítems =====
+function agregarFila(){
+  const tr = document.createElement("tr");
+  tr.className = "vacia";
+  tr.innerHTML = `
+    <td class="n"></td>
+    <td><select class="cat"><option value="">— Elegir —</option>${Object.keys(CATALOGO).map(h=>opt(h,NOMBRES[h])).join("")}</select></td>
+    <td><select class="art" disabled><option value="">—</option></select></td>
+    <td><select class="pres" disabled><option value="">—</option></select></td>
+    <td class="unidad">—</td>
+    <td class="cant"><input type="number" min="1" step="1" class="cantidad" placeholder="0"></td>
+    <td class="x"><button class="borrar" title="Quitar ítem">✕</button></td>`;
+  const cat = tr.querySelector(".cat"), art = tr.querySelector(".art"),
+        pres = tr.querySelector(".pres"), uni = tr.querySelector(".unidad"),
+        cant = tr.querySelector(".cantidad");
+
+  cat.onchange = () => {
+    const lista = CATALOGO[cat.value] || [];
+    art.innerHTML = `<option value="">— Elegir —</option>` + unicos(lista.map(x=>x[0])).map(a=>opt(a)).join("");
+    art.disabled = !cat.value;
+    pres.innerHTML = `<option value="">—</option>`; pres.disabled = true; uni.textContent = "—";
+    refrescar();
+  };
+  art.onchange = () => {
+    const op = (CATALOGO[cat.value] || []).filter(x => x[0] === art.value);
+    pres.innerHTML = op.map(x=>opt(x[1], x[1] || "(sin presentación)")).join("");
+    pres.disabled = op.length <= 1;
+    pres.onchange();
+  };
+  pres.onchange = () => {
+    const it = (CATALOGO[cat.value] || []).find(x => x[0] === art.value && x[1] === pres.value);
+    uni.textContent = it ? (it[2] || "—") : "—";
+    refrescar();
+  };
+  cant.oninput = refrescar;
+  tr.querySelector(".borrar").onclick = () => { tr.remove(); if(!$("items").children.length) agregarFila(); refrescar(); };
+  $("items").appendChild(tr);
+  refrescar();
+}
+
+function leerItems(){
+  return [...$("items").children].map(tr => ({
+    hoja: tr.querySelector(".cat").value,
+    articulo: tr.querySelector(".art").value,
+    presentacion: tr.querySelector(".pres").value,
+    unidad: tr.querySelector(".unidad").textContent === "—" ? "" : tr.querySelector(".unidad").textContent,
+    cantidad: parseInt(tr.querySelector(".cantidad").value, 10) || 0,
+    tr
+  }));
+}
+
+function refrescar(){
+  let total = 0, completos = 0;
+  leerItems().forEach((it, i) => {
+    it.tr.querySelector(".n").textContent = i + 1;
+    const ok = it.hoja && it.articulo && it.cantidad > 0;
+    it.tr.classList.toggle("vacia", !ok);
+    if (ok){ total += it.cantidad; completos++; }
+  });
+  $("totalCant").textContent = total;
+  $("totalItems").textContent = completos;
+  actualizarQR();
+}
+
+// ===== Datos del remito (lo que lee la otra app) =====
+function datosRemito(){
+  return {
+    v: 1,
+    numero: $("numero").value.trim(),
+    fecha: $("fecha").value,
+    delegacion: $("delegacion").value,
+    sector: $("sector").value.trim(),
+    entrega: $("entrega").value.trim(),
+    observaciones: $("obs").value.trim(),
+    items: leerItems().filter(i => i.hoja && i.articulo && i.cantidad > 0)
+                      .map(i => [i.hoja, i.articulo, i.presentacion, i.cantidad])
+  };
+}
+
+let tQR;
+function actualizarQR(){
+  clearTimeout(tQR);
+  tQR = setTimeout(() => {
+    $("pieNumero").textContent = $("numero").value ? "Remito " + $("numero").value : "";
+    // copia de los datos como texto oculto: la app de recepción la lee del PDF
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(datosRemito()))));
+    $("datosPDF").textContent = "REMITO-DATA:" + b64 + "REMITO-FIN";
+    const box = $("qr"); box.innerHTML = ""; $("avisoQR").textContent = "";
+    if (typeof QRCode === "undefined"){ $("avisoQR").textContent = "Sin conexión: no se pudo generar el QR (el PDF igual se puede leer)."; return; }
+    try{
+      new QRCode(box, {text: JSON.stringify(datosRemito()), width: 232, height: 232, correctLevel: QRCode.CorrectLevel.L});
+    }catch(e){
+      $("avisoQR").textContent = "Demasiados ítems para el QR (el PDF igual se puede leer).";
+    }
+  }, 250);
+}
+
+function validar(){
+  const d = datosRemito(), err = [];
+  if (!d.numero) err.push("Falta el número de remito.");
+  if (!d.fecha) err.push("Falta la fecha.");
+  if (!d.delegacion) err.push("Elegí la delegación destino.");
+  if (!d.items.length) err.push("Cargá al menos un ítem completo (categoría, artículo y cantidad).");
+  const incompletas = leerItems().filter(i => (i.hoja || i.cantidad) && !(i.hoja && i.articulo && i.cantidad > 0));
+  if (incompletas.length) err.push(`Hay ${incompletas.length} fila(s) incompleta(s): no se van a incluir.`);
+  return err;
+}
+
+function imprimir(){
+  const err = validar();
+  const graves = err.filter(e => !e.startsWith("Hay "));
+  if (graves.length){ alert(err.join("\n")); return; }
+  if (err.length && !confirm(err.join("\n") + "\n\n¿Imprimir igual?")) return;
+  setTimeout(() => window.print(), 300);
+}
+
+
+function nuevoRemito(){
+  if (leerItems().some(i => i.hoja) && !confirm("¿Borrar este remito y empezar uno nuevo?")) return;
+  $("numero").value = numeroNuevo(); $("fecha").value = hoy();
+  $("delegacion").value = ""; $("sector").value = ""; $("obs").value = "";
+  $("entrega").value = ""; $("recibe").value = "";
+  $("items").innerHTML = ""; agregarFila();
+}
+
+// ===== Inicio =====
+$("delegacion").innerHTML = `<option value="">— Elegir —</option>` + DELEGACIONES.map(d=>opt(d)).join("");
+$("numero").value = numeroNuevo(); $("fecha").value = hoy();
+agregarFila();
+</script>
+</body>
+</html>
